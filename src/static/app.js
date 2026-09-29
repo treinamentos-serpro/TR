@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      activitySelect.options.length = 1;
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -24,8 +25,57 @@ document.addEventListener("DOMContentLoaded", () => {
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <p class="availability"><strong>Availability:</strong> <span class="availability-count">${spotsLeft} spots left</span></p>
+          <div class="participants">
+            <h5>Participants</h5>
+            <ul class="participant-list"></ul>
+          </div>
         `;
+
+        const participantList = activityCard.querySelector(".participant-list");
+        details.participants.forEach((participant) => {
+          const participantItem = document.createElement("li");
+          const participantName = document.createElement("span");
+          participantName.textContent = participant;
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "remove-participant";
+          removeButton.textContent = "\u{1F5D1}";
+          removeButton.title = `Cancel ${participant}'s registration`;
+          removeButton.setAttribute("aria-label", `Cancel ${participant}'s registration`);
+          removeButton.addEventListener("click", async () => {
+            removeButton.disabled = true;
+
+            try {
+              const response = await fetch(
+                `/activities/${encodeURIComponent(name)}/participants/${encodeURIComponent(participant)}`,
+                { method: "DELETE" }
+              );
+              const result = await response.json();
+
+              if (!response.ok) {
+                throw new Error(result.detail || "Failed to cancel registration");
+              }
+
+              participantItem.remove();
+              const remainingParticipants = participantList.children.length;
+              activityCard.querySelector(".availability-count").textContent =
+                `${details.max_participants - remainingParticipants} spots left`;
+              messageDiv.textContent = result.message;
+              messageDiv.className = "success";
+            } catch (error) {
+              removeButton.disabled = false;
+              messageDiv.textContent = error.message;
+              messageDiv.className = "error";
+            }
+
+            messageDiv.classList.remove("hidden");
+          });
+
+          participantItem.append(participantName, removeButton);
+          participantList.appendChild(participantItem);
+        });
 
         activitiesList.appendChild(activityCard);
 
@@ -62,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        await fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
